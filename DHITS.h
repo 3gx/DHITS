@@ -11,6 +11,7 @@
 #include "Scheduler.h"
 
 #define RUNGMAX 16
+
 struct Nbody
 {
   /*****************/
