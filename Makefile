@@ -1,6 +1,6 @@
-CXX = mpicxx 
-CC  = mipcc 
-LD  = mpicxx 
+CXX = g++
+CC  = gcc
+LD  = g++
 
 .SUFFIXES: .o .f90 .cpp .cu .s
 
