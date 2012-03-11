@@ -390,7 +390,7 @@ struct Nbody
     return ptcl;
   }
 
-#if 0
+#if 1
 
   void iterate(const int nsteps = 16)
   {
