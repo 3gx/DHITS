@@ -66,6 +66,104 @@ Particle::Vector read_xyz(const int nbody, const real dt)
   return ptcl;
 }
 
+Particle::Vector read_aei(const int nbody, const real dt)
+{
+  Particle::Vector ptcl;
+  assert(nbody > 0);
+  
+  real mass_scale, pos_scale, vel_scale;
+  std::cin >> mass_scale >> pos_scale >> vel_scale;
+  fprintf(stderr, " scaling mass by %g \n", mass_scale);
+  fprintf(stderr, " scaling position by %g \n", pos_scale);
+  fprintf(stderr, " scaling velocity by %g \n", vel_scale);
+
+  real Mcentre;
+  int index;
+  std::cin >> index;
+  std::cin >> Mcentre;
+
+  fprintf(stderr, " Mcentre= %g \n", Mcentre);
+  ptcl.push_back(Particle(Mcentre, 0.0, 0.0));
+
+  for (int i = 0; i < nbody-1; i++)
+  {
+    real mass;
+    real dt_scale;
+    real a; // semi-major axis
+    real e; // eccentricity
+    real I; // inclination in degrees;
+    real w; // argument of the pericentre in degrees
+    real O; // longitude of the ascending node in degrees
+    real M; // mean anomaly in degrees;
+    std::cin >> index >> 
+      dt_scale >>
+      mass >> 
+      a    >> 
+      e    >> 
+      I    >> 
+      w    >> 
+      O    >> 
+      M;
+    fprintf(stderr, " i =%d : index= %d dt_scale= %g mass= %g  a= %g  e= %g  I= %g  w= %g  O= %g  M= %g :: r_peri= %g  r_apo= %g\n",
+        i, index, dt_scale, mass,
+        a, e, I, w, O, M,
+        a*(1.0 -e), a*(1.0 +e));
+
+    w *= M_PI/180.0;
+    I *= M_PI/180.0;
+    M *= M_PI/180.0;
+    O *= M_PI/180.0;
+
+#if 0
+    const real x  = sma[i]*(1+ecc[i]);
+    const real y  = 0.0;
+    const real vx = 0.0;
+    const real vy = sqrt(1.0/sma[i]*(1-ecc[i])/(1+ecc[i]));
+#else
+    const real Mt   = Mcentre + mass;
+    const real E    = Kepler::EccentricAnomaly(e, M);
+    const real Edot = sqrt(Mt/(a*a*a))/(1 - e*cos(E));
+
+    const real x    =  a*(cos(E) - e);
+    const real y    =  a*sqrt(1.0 - e*e)*sin(E);
+    const real vx   = -a*sin(E)*Edot;
+    const real vy   =  a*sqrt(1.0 - e*e)*cos(E)*Edot;
+#endif
+
+    real r, f;
+
+    r = sqrt(x*x+y*y);
+    f = atan2(y,x);
+
+    const vec3 pos(
+        r*(cos(O)*cos(w+f) - sin(O)*sin(w+f)*cos(I)),
+        r*(sin(O)*cos(w+f) + cos(O)*sin(w+f)*cos(I)),
+        r*(sin(w+f)*sin(I)));
+
+    r = sqrt(vx*vx+vy*vy);
+    f = atan2(vy,vx);
+
+    const vec3 vel(
+        r*(cos(O)*cos(w+f) - sin(O)*sin(w+f)*cos(I)),
+        r*(sin(O)*cos(w+f) + cos(O)*sin(w+f)*cos(I)),
+        r*(sin(w+f)*sin(I)));
+
+    fprintf(stderr, " m= %g  pos= %g %g %g  vel= %g %g %g \n",
+        mass,
+        pos.x, pos.y, pos.z,
+        vel.x, vel.y, vel.z);
+
+    ptcl.push_back(Particle(mass, pos, vel, dt_scale*dt));
+  }
+  
+  ptcl[0].dt = -1.0;
+
+  fprintf(stderr, "read= %d  particles \n", nbody-1);
+  assert(nbody == (int)ptcl.size());
+
+  return ptcl;
+}
+
 int main(int argc, char * argv[])
 {
 #ifndef _SSE_
@@ -109,9 +207,17 @@ int main(int argc, char * argv[])
   std::cin >> dt;
   fprintf(stderr, " dt= %g \n", dt);
 
-  assert(nbody > 0);
-  fprintf(stderr, " Reading xyz format ... \n");
-  ptcl = read_xyz(nbody, dt*Tscale);
+  if (nbody < 0)
+  {
+    fprintf(stderr, " Reading aei format ... \n");
+    ptcl = read_aei(-nbody, dt*Tscale);
+  }
+  else
+  {
+    fprintf(stderr, " Reading xyz format ... \n");
+    ptcl = read_xyz(nbody, dt*Tscale);
+  }
+
 
   const real dt_max = 128.0;
   Nbody s(iteration, tepoch, dt_max, ptcl);
@@ -125,7 +231,6 @@ int main(int argc, char * argv[])
   real t_out  = s.time/Tscale;
   real t_snap = s.time/Tscale;
 
-
   real de_max = 0.0;
 
   double t0 = mytimer::get_wtime();
@@ -136,7 +241,7 @@ int main(int argc, char * argv[])
     const double t1 = mytimer::get_wtime() + 1.0/HUGE;
     if (s.time/Tscale > t_log || s.time/Tscale >= Tend || s.iteration % di_iter == 0)
     {
-      const real E1 = s.Epot() + s.Ekin();
+      const real E1 = s.Etot();
       de_max = std::max(de_max, std::abs((E1 - E0)/E0));
       fprintf(stderr, "iter= %llu :: t= %g dt= %4.3g  dE= %4.3g ddE= %4.3g dEmax= %4.3g  Twall= %4.3g hr | <T>= %4.3g sec | iter1/iter= %g\n",
           s.iteration,

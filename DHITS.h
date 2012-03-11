@@ -10,6 +10,10 @@
 #include "dh.h"
 #include "Scheduler.h"
 
+#if 1   /* set to 1 in order to use Symplectic Corrector */
+#define USE_SYMPC
+#endif
+
 #define RUNGMAX 16
 
 struct Nbody
@@ -32,7 +36,9 @@ struct Nbody
   real dt_step, dt_multi, dt_extra, dt_err;
 
   Scheduler<RUNGMAX> scheduler;
-  
+
+  double a[17], b[17];
+
   void reset_counters()
   {
     flops = 0.0;
@@ -88,7 +94,51 @@ struct Nbody
 
     for (int i = 0; i < n-1; i++)
       scheduler.push_particle(i, ptcl[i].dt);
+
+    const real alpha = std::sqrt(7.0/40.0);
+    const real  beta = 1.0/(48.0*alpha);
+
+    a[8] = 1.0*alpha;
+    b[8] = 45815578591785473.0/24519298961757600.0*beta;
+
+    a[7] = 2.0*alpha;
+    b[7] = -104807478104929387.0/80063017017984000.0*beta;
+
+    a[6] = 3.0*alpha;
+    b[6] = 422297952838709.0/648658702692000.0*beta;
+
+    a[5] = 4.0*alpha;
+    b[5] = -27170077124018711.0/112088223825177600.0*beta;
+
+    a[4] = 5.0*alpha;
+    b[4] = 102433989269.0/1539673404192.0*beta;
+
+    a[3] = 6.0*alpha;
+    b[3] = -33737961615779.0/2641809989145600.0*beta;
+
+    a[2] = 7.0*alpha;
+    b[2] = 26880679644439.0/17513784972684000.0*beta;
+
+    a[1] = 8.0*alpha;
+    b[1] = +682938344463443.0/7846175667762432000.0*beta;
+
+    for (int i = 9; i <= 16; i++)
+    {
+      a[i] = -a[17-i];
+      b[i] = -b[17-i];
+    }
+
+#if 0
+    for (int i = 1; i <= 8; i++)
+    {
+      fprintf(stderr, "a[%d]= %lg  b[%d]= %15.15lg\n", i, a[i]/alpha, i, b[i]/beta);
+    }
+#endif
+
+    ptcl = cvt2symp(ptcl);
   }
+
+  private:
 
   void move_to_CM(Particle::Vector&ptcl) const
   {
@@ -112,7 +162,7 @@ struct Nbody
     }
   }
 
-  real Epot() const
+  real Epot(const Particle::Vector &ptcl) const
   {
     const int nbody = ptcl.size();
     real gpot = 0.0;
@@ -127,7 +177,7 @@ struct Nbody
     return gpot;
   }
 
-  real Ekin() const
+  real Ekin(const Particle::Vector &ptcl) const
   {
     real Ekin = 0.0;
     vec3 cmom(0.0);
@@ -142,14 +192,18 @@ struct Nbody
     return Ekin + Eckin;
   }
 
+  public:
+
   real Etot() const
   {
-
-    return Ekin() + Epot();
+    const Particle::Vector ptcl = cvt2phys(this->ptcl);
+    return Ekin(ptcl) + Epot(ptcl);
   }
 
   std::string print_orbit(const int i) const
   {
+    const Particle::Vector ptcl = cvt2phys(this->ptcl);
+
     vec3 cVel(0.0);
     for (Particle::Vector::const_iterator it = ptcl.begin(); it != ptcl.end(); it++)
       cVel += it->momentum();
@@ -238,7 +292,8 @@ struct Nbody
 
   std::string print_output() const
   {
-    Particle::Vector ptcl(this->ptcl.size() + 1);
+    Particle::Vector ptcl = cvt2phys(this->ptcl);
+
     const int n = ptcl.size();
     for (int i = 1; i < n; i++)
       ptcl[i] = this->ptcl[i-1];
@@ -268,7 +323,76 @@ struct Nbody
     return oss.str();
   }
 
-  void iterate()
+  void Xstep(const real a, const real b, Particle::Vector &ptcl) const
+  {
+    static std::vector<int> active_list;
+    if (active_list.empty())
+    {
+      const int n = ptcl.size();
+      active_list.resize(n);
+      for (int i = 0; i < n; i++)
+        active_list[i] = i;
+    }
+    dh.kepler_drift(ptcl, active_list,  a);
+    dh.linear_drift(ptcl, active_list,  b);
+    dh.kick        (ptcl, active_list,  b);
+    dh.kepler_drift(ptcl, active_list,  -a);
+  }
+  void Zstep(const real a, const real b, Particle::Vector &ptcl) const
+  {
+    Xstep( a,  b, ptcl);
+    Xstep(-a, -b, ptcl);
+  }
+
+  Particle::Vector cvt2symp(const Particle::Vector &ptcl_in) const
+  {
+    Particle::Vector ptcl(ptcl_in);
+    
+#ifndef USE_SYMPC
+    return ptcl;
+#endif
+
+#if 0
+    for (int i = 1; i < (const int)ptcl.size(); i++)
+      ptcl[i].dt = ptcl[0].dt;
+    for (int i = 16; i >= 1; i--)
+      Zstep(a[i], -b[i], ptcl);
+    for (int i = 1; i < (const int)ptcl.size(); i++)
+      ptcl[i].dt = ptcl_in[i].dt;
+#else
+    for (int i = 16; i >= 1; i--)
+      Zstep(a[i], -b[i], ptcl);
+#endif
+
+    return ptcl;
+  }
+
+  Particle::Vector cvt2phys(const Particle::Vector &ptcl_in) const
+  {
+    Particle::Vector ptcl(ptcl_in);
+
+#ifndef USE_SYMPC
+    return ptcl;
+#endif
+
+#if 0
+    for (int i = 1; i < (const int)ptcl.size(); i++)
+      ptcl[i].dt = ptcl[0].dt;
+    for (int i = 1; i <= 16; i++)
+      Zstep(a[i], b[i], ptcl);
+    for (int i = 1; i < (const int)ptcl.size(); i++)
+      ptcl[i].dt = ptcl_in[i].dt;
+#else
+    for (int i = 1; i <= 16; i++)
+      Zstep(a[i], b[i], ptcl);
+#endif
+
+    return ptcl;
+  }
+
+#if 0
+
+  void iterate(const int nsteps = 16)
   {
     const int n = ptcl.size();
     std::vector<int> active_list(n);
@@ -277,12 +401,14 @@ struct Nbody
 
     dh.drift1(ptcl, active_list);
 
-    real time0 = time;
+    const real time0 = time;
+    int step = 1;
     while (1)
     {
+      step++;
       active_list.clear();
       const real dt = scheduler.pull_active_list(active_list);
-      const bool full_step = active_list.size() == ptcl.size();
+      const bool full_step = active_list.size() == ptcl.size() && step > nsteps;
       assert(!active_list.empty());
 
       dh.kick(ptcl, active_list);
@@ -302,6 +428,103 @@ struct Nbody
     dt = time - time0;
     iteration++;
   }
+
+#else  /* experimental!!! */
+
+  double compute_dt(const Particle::Vector &ptcl) const
+  {
+    vec3 cVel(0.0);
+    for (Particle::Vector::const_iterator it = ptcl.begin(); it != ptcl.end(); it++)
+      cVel += it->momentum();
+
+    cVel *= -1.0/dh.Mcentre;
+
+    double dt_min = HUGE;
+
+    const int n = ptcl.size();
+
+    for (int i = 0; i < n; i++)
+    {
+      /* compute curvature */
+      const vec3 pos = ptcl[i].pos;
+      const vec3 vel = ptcl[i].vel - cVel;
+
+      const double r =  pos.abs();
+      const double v =  vel.abs();
+      const vec3 acc = -dh.Mcentre/(r*r*r)*pos;
+
+      const vec3 VxA      = vel % acc;
+      const double vxa      = VxA.abs();
+      const double R        = v*v*v/vxa;
+      const double dphi     = 2*M_PI/100;
+      const double dt_curv  = dphi * R/v;
+
+      const vec3 jrk      = -3.0*acc*(vel*pos)/(r*r) - dh.Mcentre/(r*r*r)*vel;
+      const double Rdot     =  3.0*v*(vel*acc)/vxa - v*v*v/(vxa*vxa*vxa) * (VxA*(vel%jrk));
+      const double dt_Rdot  =  0.01*R/(std::abs(Rdot) + 1.0/HUGE);
+
+      dt_min = std::min(dt_min, 1.0/(1.0/dt_curv + 1.0/dt_Rdot));
+    }
+
+    //    return dt_max;
+#if 1
+    return dt_min; //std::min(dt_min, dt_max);
+#else
+    double dt1 = dt;
+    while (    dt1 > dt_min) dt1 *= 0.5;
+    while (2.0*dt1 < dt_min) dt1 *= 2.0;
+    return std::min(dt1, dt_max);
+#endif
+  }
+
+  void iterate()
+  {
+    static std::vector<int> active_list;
+    if (active_list.empty())
+    {
+      const int n = ptcl.size();
+      active_list.resize(n);
+      for (int i = 0; i < n; i++)
+        active_list[i] = i;
+
+#if 1
+      for (int i = 1; i < (const int)ptcl.size(); i++)
+        ptcl[i].dt = ptcl[0].dt;
+#endif
+
+      scheduler.flush_list();
+    }
+    
+
+#if 1
+    ptcl = cvt2phys(ptcl);
+
+    const real dt_step = compute_dt(ptcl);
+    for (Particle::Vector::iterator it = ptcl.begin(); it != ptcl.end(); it++)
+      it->dt = dt_step;
+
+    ptcl = cvt2symp(ptcl);
+#endif
+
+
+    const real time0 = time;
+
+    dh.drift1(ptcl, active_list);
+    const int Niter = 16;
+    for (int n = 0; n < Niter; n++)
+    {
+      dh.kick(ptcl, active_list);
+      if (n < Niter-1) dh.staggered_drift (ptcl, active_list);
+      else             dh.          drift2(ptcl, active_list);
+
+      time += ptcl[0].dt;
+      iteration1++;
+    }
+
+    dt = time - time0;
+    iteration++;
+  }
+#endif
 
 };
 

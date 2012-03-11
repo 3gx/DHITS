@@ -13,7 +13,7 @@ struct DH
 
   DH(const real M = 0.0) : Mcentre(M) {}
   
-  void kepler_drift(Particle::Vector &ptcl, const std::vector<int> &active_list, const real fac = 0.5)
+  void kepler_drift(Particle::Vector &ptcl, const std::vector<int> &active_list, const real fac = 0.5) const
   {
     for (std::vector<int>::const_iterator it = active_list.begin(); it != active_list.end(); it++)
     {
@@ -24,7 +24,7 @@ struct DH
     }
   }
   
-  void linear_drift(Particle::Vector &ptcl, const std::vector<int> &active_list, const real fac = 0.5)
+  void linear_drift(Particle::Vector &ptcl, const std::vector<int> &active_list, const real fac = 0.5) const
   {
     vec3 cmom(0.0);
     for (Particle::Vector::iterator it = ptcl.begin(); it != ptcl.end(); it++)
@@ -37,18 +37,18 @@ struct DH
   }
 
 
-  void drift1(Particle::Vector &ptcl, const std::vector<int> &active_list)
+  void drift1(Particle::Vector &ptcl, const std::vector<int> &active_list) const
   {
     kepler_drift(ptcl, active_list, 0.5);
     linear_drift(ptcl, active_list, 0.5);
   }
-  void drift2(Particle::Vector &ptcl, const std::vector<int> &active_list)
+  void drift2(Particle::Vector &ptcl, const std::vector<int> &active_list) const
   {
     linear_drift(ptcl, active_list, 0.5);
     kepler_drift(ptcl, active_list, 0.5);
   }
   
-  void staggered_drift(Particle::Vector &ptcl, const std::vector<int> &active_list)
+  void staggered_drift(Particle::Vector &ptcl, const std::vector<int> &active_list) const
   {
     linear_drift(ptcl, active_list, 0.5);
     kepler_drift(ptcl, active_list, 1.0);
@@ -56,7 +56,7 @@ struct DH
   }
 
 #ifndef _SSE_
-  void kick(Particle::Vector &ptcl, const std::vector<int> &active_list)
+  void kick(Particle::Vector &ptcl, const std::vector<int> &active_list, const real fac = 1.0) const
   {
     const int n = ptcl.size();
     for (std::vector<int>::const_iterator it = active_list.begin(); it != active_list.end(); it++)
@@ -69,18 +69,18 @@ struct DH
         const real ids  = std::sqrt(ids2);
         const real ids3 = ids2*ids; 
         const vec3 aij  = ids3*dr;
-        ptcl[i].vel += aij*(+ptcl[j].mass*ptcl[i].dt);
-        ptcl[j].vel += aij*(-ptcl[i].mass*ptcl[i].dt);
+        ptcl[i].vel += aij*(+ptcl[j].mass*fac*ptcl[i].dt);
+        ptcl[j].vel += aij*(-ptcl[i].mass*fac*ptcl[i].dt);
       }
   }
 #else
-  void kick(Particle::Vector &ptcl, const std::vector<int> &active_list)
+  void kick(Particle::Vector &ptcl, const std::vector<int> &active_list, const real fac = 1.0) const
   {
     const int n = ptcl.size();
     for (std::vector<int>::const_iterator it = active_list.begin(); it != active_list.end(); it++)
     {
-      const v2df dt    = (v2df){ ptcl[*it].dt,    ptcl[*it].dt};
-      const v2df massi = (v2df){-ptcl[*it].mass, -ptcl[*it].mass}*dt;
+      const v2df dt      = (v2df){ ptcl[*it].dt,    ptcl[*it].dt}*(v2df){fac, fac};
+      const v2df massidt = (v2df){-ptcl[*it].mass, -ptcl[*it].mass}*dt;
       for (int j = (*it)+1; j < n; j += 2)
       {
         const int i      = *it;
@@ -103,9 +103,9 @@ struct DH
         ptcl[i].vel.y += reduce(ay*massj*dt);
         ptcl[i].vel.z += reduce(az*massj*dt);
 
-        const v2df axj = ax * massi;
-        const v2df ayj = ay * massi;
-        const v2df azj = az * massi;
+        const v2df axj = ax * massidt;
+        const v2df ayj = ay * massidt;
+        const v2df azj = az * massidt;
         ptcl[j].vel.x += __builtin_ia32_vec_ext_v2df(axj,0);
         ptcl[j].vel.y += __builtin_ia32_vec_ext_v2df(ayj,0);
         ptcl[j].vel.z += __builtin_ia32_vec_ext_v2df(azj,0);
