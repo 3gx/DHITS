@@ -5,7 +5,11 @@
 #define _SSE_
 #endif
 
+#if 0
 #include "DHITS.h"
+#else
+#include "DHITSsh.h"
+#endif
 #include "kepler.h"
 #include "mytimer.h"
 

@@ -40,4 +40,4 @@ clean:
 	/bin/rm -rf *.o version.h
 	/bin/rm -rf $(PROG) lib$(VLIB).a
 
-$(OBJS) : DHITS.h particle.h vector3.h kepler.h dh.h Scheduler.h
+$(OBJS) : DHITS.h DHITSsh.h particle.h vector3.h kepler.h dh.h Scheduler.h
