@@ -8,13 +8,98 @@
 #include <cstdlib>
 #include "particle.h"
 #include "dh.h"
-#include "Scheduler.h"
 
 #if 1   /* set to 1 in order to use Symplectic Corrector */
 #define USE_SYMPC
 #endif
 
-#define RUNGMAX 16
+struct Orbit
+{
+  real inc;
+  real sma;
+  real ecc;
+  real Omega;
+  real lambda;
+
+  Orbit(const vec3 &R, const vec3 &V, const real Mtot)
+  {
+    const vec3 L = R%V;
+    const real h2 = L.norm2();
+    const real h  = std::sqrt(h2); 
+
+    const real inc = std::acos(L.z/h);
+    const real fac = std::sqrt(L.x*L.x + L.y*L.y)/h;
+    const real LSMALL = 1.0e-10;
+
+    real capom, u;
+    if (fac < LSMALL)
+    {
+      capom = 0.0;
+      u     = std::atan2(R.y, R.x);
+      if (std::abs(inc - M_PI) < 10*LSMALL) 
+        u = -u;
+    } 
+    else
+    {
+      capom = std::atan2(L.x, -L.y);
+      u = std::atan2( R.z/std::sin(inc) , R.x*std::cos(capom) + R.y*std::sin(capom));
+    }
+
+    if (capom < 0.0) capom += 2.0*M_PI;
+    if (u     < 0.0) u     += 2.0*M_PI;
+
+    const real r  = R.abs();
+    const real v2 = V.norm2();
+    const real vdotr = R*V;
+    const real  energy = 0.5*v2 -  Mtot/r; 
+    assert(energy < 0.0);
+
+    real e, f, a, omega, capm;
+    {
+
+      a = -0.5*Mtot/energy;
+      const real fac = 1.0 - h2/(Mtot*a);
+      assert(a > 0.0);
+
+
+      real cape; 
+      if (fac > LSMALL)
+      {
+        e = std::sqrt(fac);
+        const real face = (a-r)/(a*e);
+        cape = face > 0.9999999 ? 0.0 : (face > -0.9999999 ? std::acos(face) : M_PI);
+
+        if (vdotr < 0.0) cape = 2.0*M_PI - cape;
+
+        const real cf = (std::cos(cape) - e)/(1.0 - e*std::cos(cape));
+        const real sf = std::sqrt(1-e*e)*std::sin(cape)/(1.0 - e*std::cos(cape));
+        f = std::atan2(sf, cf);
+        if (f < 0.0) f += 2.0*M_PI;
+      }
+      else
+      {
+        e = 0.0;
+        f = u;
+        cape = u;
+      }
+
+      capm = cape - e*std::sin(cape);
+      omega = u - f;
+      if (omega < 0) omega += 2.0*M_PI;
+      omega = omega - int(omega/(2.0*M_PI))*2.0*M_PI;  /* longitude of pericentre */
+    }
+
+    real wp = capom + omega;
+    real lambda = capm + wp;
+    lambda = lambda - int(lambda/(2.0*M_PI))*2.0*M_PI;
+
+    this->inc    = inc;
+    this->sma    = a;
+    this->ecc    = e;
+    this->Omega  = wp;
+    this->lambda = lambda;
+  }
+};
 
 struct Nbody
 {
@@ -27,15 +112,13 @@ struct Nbody
 
   /*****************/
 
-  DH dh;
   real dt;
+  DH dh;
   
   unsigned long long flops;
   real tbeg;
   real dt_force;
   real dt_step, dt_multi, dt_extra, dt_err;
-
-  Scheduler<RUNGMAX> scheduler;
 
   int    NCSTEP;
   double a[17], b[17];
@@ -88,17 +171,11 @@ struct Nbody
     for (int i = 0; i < n-1; i++)
       ptcl[i].dt = dt_min;
 
-    /* setting up the scheduler */
+    /* setting up the DH solver */
 
-    real dt_max = 1.0;
-    while (dt > dt_max) dt_max *= 2.0;
-    while (dt < dt_max) dt_max *= 0.5;
-    
-    scheduler = Scheduler<RUNGMAX>(dt_max);
     dh        = DH(Mcentre);
 
-    for (int i = 0; i < n-1; i++)
-      scheduler.push_particle(i, ptcl[i].dt);
+    /* setting symplectic corrector */
 
     const real alpha = std::sqrt(7.0/40.0);
     const real  beta = 1.0/(48.0*alpha);
@@ -201,6 +278,10 @@ struct Nbody
     }
 #endif
 
+#if 1
+    ptcl = cvt2symp(ptcl);
+#endif
+
   }
 
   private:
@@ -261,7 +342,7 @@ struct Nbody
 
   real Etot() const
   {
-#if 0
+#if 1
     const Particle::Vector ptcl = cvt2phys(this->ptcl);
 #else
     const Particle::Vector &ptcl = this->ptcl;
@@ -271,7 +352,7 @@ struct Nbody
 
   std::string print_orbit(const int i) const
   {
-#if 0
+#if 1
     const Particle::Vector ptcl = cvt2phys(this->ptcl);
 #else
     const Particle::Vector &ptcl = this->ptcl;
@@ -287,86 +368,17 @@ struct Nbody
     const vec3 V = p.vel - cVel;
     const real Mtot = p.mass + dh.Mcentre;
 
-    const vec3 L = R%V;
-    const real h2 = L.norm2();
-    const real h  = std::sqrt(h2); 
-
-    const real inc = std::acos(L.z/h);
-    const real fac = std::sqrt(L.x*L.x + L.y*L.y)/h;
-    const real LSMALL = 1.0e-10;
-
-    real capom, u;
-    if (fac < LSMALL)
-    {
-      capom = 0.0;
-      u     = std::atan2(R.y, R.x);
-      if (std::abs(inc - M_PI) < 10*LSMALL) 
-        u = -u;
-    } 
-    else
-    {
-      capom = std::atan2(L.x, -L.y);
-      u = std::atan2( R.z/std::sin(inc) , R.x*std::cos(capom) + R.y*std::sin(capom));
-    }
-
-    if (capom < 0.0) capom += 2.0*M_PI;
-    if (u     < 0.0) u     += 2.0*M_PI;
-
-    const real r  = R.abs();
-    const real v2 = V.norm2();
-    const real vdotr = R*V;
-    const real  energy = 0.5*v2 -  Mtot/r; 
-    assert(energy < 0.0);
-
-    real e, f, a, omega, capm;
-    {
-
-      a = -0.5*Mtot/energy;
-      const real fac = 1.0 - h2/(Mtot*a);
-      assert(a > 0.0);
-
-
-      real cape; 
-      if (fac > LSMALL)
-      {
-        e = std::sqrt(fac);
-        const real face = (a-r)/(a*e);
-        cape = face > 0.9999999 ? 0.0 : (face > -0.9999999 ? std::acos(face) : M_PI);
-
-        if (vdotr < 0.0) cape = 2.0*M_PI - cape;
-
-        const real cf = (std::cos(cape) - e)/(1.0 - e*std::cos(cape));
-        const real sf = std::sqrt(1-e*e)*std::sin(cape)/(1.0 - e*std::cos(cape));
-        f = std::atan2(sf, cf);
-        if (f < 0.0) f += 2.0*M_PI;
-      }
-      else
-      {
-        e = 0.0;
-        f = u;
-        cape = u;
-      }
-
-      capm = cape - e*std::sin(cape);
-      omega = u - f;
-      if (omega < 0) omega += 2.0*M_PI;
-      omega = omega - int(omega/(2.0*M_PI))*2.0*M_PI;  /* longitude of pericentre */
-    }
-
-    real wp = capom + omega;
-    real lambda = capm + wp;
-    lambda = lambda - int(lambda/(2.0*M_PI))*2.0*M_PI;
-
+    const Orbit orb(R, V, Mtot);
     std::stringstream oss;
-    oss <<  "#" <<  i << ": I= " << inc << " a= " << a << " e= " <<  e << 
-      " o= " << wp << " l= " << lambda;
+    oss <<  "#" <<  i << ": I= " << orb.inc << " a= " << orb.sma << " e= " <<  orb.ecc << 
+      " o= " << orb.Omega << " l= " << orb.lambda;
     return oss.str();
   }
 
   std::string print_output() const
   {
-#if 0
-    const Particle::Vector ptcl = cvt2phys(this->ptcl);
+#if 1
+    Particle::Vector ptcl = cvt2phys(this->ptcl);
 #else
     Particle::Vector ptcl(this->ptcl);
 #endif
@@ -450,45 +462,85 @@ struct Nbody
   }
 
 
+
   void iterate(const int nsteps = 32)
   {
+#if 0
     ptcl = cvt2symp(ptcl);
+#endif
 
     const int n = ptcl.size();
-    std::vector<int> active_list(n);
-    for (int i = 0; i < n; i++)
-      active_list[i] = i;
+    static std::vector<int> active_list;
+    if (active_list.empty())
+    {
+      active_list.resize(n);
+      for (int i = 0; i < n; i++)
+        active_list[i] = i;
+    }
 
     dh.drift1(ptcl, active_list);
 
     const real time0 = time;
-    int step = 1;
-    while (1)
+    for (int i = 0; i < nsteps; i++)
     {
-      step++;
-      active_list.clear();
-      const real dt = scheduler.pull_active_list(active_list);
-      const bool full_step = active_list.size() == ptcl.size() && step > nsteps;
-      assert(!active_list.empty());
+      const real dt = ptcl[0].dt;
 
       dh.kick(ptcl, active_list);
 
-      if (!full_step) dh.staggered_drift (ptcl, active_list);
-      else            dh.          drift2(ptcl, active_list);
-
-      for (std::vector<int>::const_iterator it = active_list.begin(); it != active_list.end(); it++)
-        scheduler.push_particle(*it, ptcl[*it].dt);
+      if (i < nsteps-1) dh.staggered_drift (ptcl, active_list);
+      else              dh.          drift2(ptcl, active_list);
 
       time += dt;
       iteration1++;
-      if (full_step)
-        break;
     }
 
     dt = time - time0;
     iteration++;
 
+#if 0
+    change_dt();
+#endif
+
+#if 0
     ptcl = cvt2phys(ptcl);
+#endif
+  }
+  
+  void change_dt(const real eta = 1.0/20, const real f1 = 0.01)
+  {
+    const int n = ptcl.size();
+    
+    vec3 cVel(0.0);
+    for (Particle::Vector::const_iterator it = ptcl.begin(); it != ptcl.end(); it++)
+      cVel += it->momentum();
+    cVel *= -1.0/dh.Mcentre;
+
+    real dt_new = HUGE;
+    for (int i = 0; i < n; i++)
+    {
+      const Particle &p = ptcl[i];
+      const vec3 R = p.pos;
+      const vec3 V = p.vel - cVel;
+      const real Mtot = p.mass + dh.Mcentre;
+
+      const Orbit orb(R, V, Mtot);
+      const real rp = orb.sma*(1.0 - orb.ecc);
+      assert(rp > 0.0);
+      
+      const real tp = eta*2*M_PI*std::sqrt(rp*rp*rp/Mtot);
+      dt_new = std::min(dt_new, tp);
+    }
+
+    const real dt = ptcl[0].dt;
+    if (std::abs(dt_new - dt) > f1*dt)
+    {
+      fprintf(stderr, " -- converting : dt_old= %g  dt_new= %g-- \n", dt, dt_new);
+      ptcl = cvt2phys(ptcl);
+      for (int i = 0; i < n; i++)
+        ptcl[i].dt = dt_new;
+      ptcl = cvt2symp(ptcl);
+    }
+    
   }
 
 };
