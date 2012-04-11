@@ -1,3 +1,45 @@
+#ifndef _LIBDH_H_
+#define _LIBDH_H_
+
+#include "particle.h"
+#include "dh.h"
+  
+inline real Ekin(const Particle::Vector &ptcl, const real M) 
+{
+  real Ekin = 0.0;
+  vec3 cmom(0.0);
+  for (Particle::Vector::const_iterator it = ptcl.begin(); it != ptcl.end(); it++)
+  {
+    Ekin += it->Ekin();
+    cmom += it->momentum();
+  }
+
+  const real Eckin = cmom.norm2()*0.5/M;
+
+  return Ekin + Eckin;
+}
+
+inline real Epot(const Particle::Vector &ptcl, const real M)
+{
+  const int nbody = ptcl.size();
+  real gpot = 0.0;
+
+  for (int i = 0; i < nbody-1; i++)
+    for (int j = i+1; j < nbody; j++)
+      gpot -= ptcl[i].mass*ptcl[j].mass/(ptcl[i].pos - ptcl[j].pos).abs();
+
+  for (int i = 0; i < nbody; i++)
+    gpot -= M*ptcl[i].mass/ptcl[i].pos.abs();
+
+  return gpot;
+}
+
+inline real Etot(const Particle::Vector &ptcl, const real M) 
+{
+  return Ekin(ptcl, M) + Epot(ptcl, M);
+}
+
+
 struct Orbit
 {
   real inc;
@@ -92,14 +134,16 @@ struct libDH
   int NCSTEP;
   double a[18], b[17];
 
-  libDH(const real M, const int sc_mode = 17) : h(DH(M)) 
+  libDH(const real M, const int sc_mode = 17) : dh(DH(M)) 
   {
     set_sc(sc_mode);
   };
 
   void set_sc(const int sc_mode)
   {
-    switch (nc_mode)
+    const real alpha = std::sqrt(7.0/40.0);
+    const real  beta = 1.0/(48.0*alpha);
+    switch (sc_mode)
     {
       case(2):
         fprintf(stderr, " -- libDH: 2nd order symplectic corrector ");
@@ -200,7 +244,7 @@ struct libDH
     }
   }
 
-  void iterate(Particle::Vector &ptcl, const real dt, int nstep = 32) const
+  void iterate(Particle::Vector &ptcl, const real dt, real &t, unsigned long long &i, int nstep = 32) const
   {
     dh.drift1(ptcl, dt);
     while (nstep > 0)
@@ -210,6 +254,9 @@ struct libDH
 
       if (nstep > 0) dh.staggered_drift (ptcl, dt);
       else           dh.          drift2(ptcl, dt);
+
+      t += dt;
+      i++;
     }
   }
 
@@ -225,16 +272,22 @@ struct libDH
     Xstep( a,  b, ptcl);
     Xstep(-a, -b, ptcl);
   }
-  void cvt2symp(Particle::Vector &ptcl, const real dt) const
+  Particle::Vector cvt2symp(const Particle::Vector &ptcl_in, const real dt) const
   {
-    if (-1 == NCSTEP) return;
+    Particle::Vector ptcl(ptcl_in);
+    if (-1 == NCSTEP) return ptcl;
     for (int i = NCSTEP - 1; i >= 1; i--)
       Zstep(a[i]*dt, -b[i]*dt, ptcl);
+    return ptcl;
   }
-  void cvt2phys(Particle::Vector &ptcl, const real dt) const
+  Particle::Vector cvt2phys(const Particle::Vector &ptcl_in, const real dt) const
   {
-    if (-1 == NCSTEP) return;
+    Particle::Vector ptcl(ptcl_in);
+    if (-1 == NCSTEP) return ptcl;
     for (int i = 1; i <= NCSTEP-1; i++)
       Zstep(a[i]*dt, b[i]*dt, ptcl);
+    return ptcl;
   }
 };
+
+#endif /* _LIBDH_H_ */

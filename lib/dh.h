@@ -15,9 +15,9 @@ struct DH
   
   void kepler_drift(Particle::Vector &ptcl, const real dt) const
   {
-    for (std::vector<int>::const_iterator it = active_list.begin(); it != active_list.end(); it++)
+    for (Particle::Vector::iterator it = ptcl.begin(); it != ptcl.end(); it++)
     {
-      Particle &p = ptcl[*it];
+      Particle &p = *it;
       const Kepler kep(p.pos, p.vel, Mcentre, dt);
       p.pos = kep.pos;
       p.vel = kep.vel;
@@ -32,8 +32,8 @@ struct DH
 
     const vec3 dr = cmom*(dt/Mcentre);
 
-    for (std::vector<int>::const_iterator it = active_list.begin(); it != active_list.end(); it++)
-      ptcl[*it].pos += dr;
+    for (Particle::Vector::iterator it = ptcl.begin(); it != ptcl.end(); it++)
+      it->pos += dr;
   }
 
 
@@ -59,10 +59,9 @@ struct DH
   void kick(Particle::Vector &ptcl, const real dt) const
   {
     const int n = ptcl.size();
-    for (std::vector<int>::const_iterator it = active_list.begin(); it != active_list.end(); it++)
-      for (int j = (*it)+1; j < n; j++)
+    for (int i = 0; i < n-1; i++)
+      for (int j = i+1; j < n; j++)
       {
-        const int i     = *it;
         const vec3 dr   = ptcl[j].pos - ptcl[i].pos;
         const real ds2  = dr.norm2();
         const real ids2 = 1.0/ds2;
@@ -77,13 +76,12 @@ struct DH
   void kick(Particle::Vector &ptcl, const real sdt) const
   {
     const int n = ptcl.size();
-    for (std::vector<int>::const_iterator it = active_list.begin(); it != active_list.end(); it++)
+    for (int i = 0; i < n-1; i++)
     {
-      const v2df dt      = (v2df){           sdt,              sdt};
-      const v2df massidt = (v2df){-ptcl[*it].mass, -ptcl[*it].mass}*dt;
-      for (int j = (*it)+1; j < n; j += 2)
+      const v2df dt      = (v2df){          sdt,           sdt};
+      const v2df massidt = (v2df){-ptcl[i].mass, -ptcl[i].mass}*dt;
+      for (int j = i+1; j < n; j += 2)
       {
-        const int i      = *it;
         const int jp     = std::min(j+1, n-1);
 
         const v2df massj = {ptcl[j].mass, (double)(jp-j)*ptcl[jp].mass};

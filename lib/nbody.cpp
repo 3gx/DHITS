@@ -5,12 +5,7 @@
 #define _SSE_
 #endif
 
-#if 0
-#include "DHITSsh.h"
-#else
-#include "DHITSsh_relax.h"
-#endif
-#include "kepler.h"
+#include "libdh.h"
 #include "mytimer.h"
 
 #ifndef __MACOSX_
@@ -35,44 +30,40 @@ crap
 void fpe_catch(void) {}
 #endif
 
-typedef double real;
-
-/* position are in AU, G = 1, time is in years */
-/* Period @ R = 1 AU is 1 year */
-
-Particle::Vector read_xyz(const int nbody, const real dt)
+real read_xyz(Particle::Vector &ptcl, const int nbody)
 {
-  Particle::Vector ptcl;
-  assert(nbody > 1);
-
+  assert(nbody > 0);
   real mass_scale, pos_scale, vel_scale;
   std::cin >> mass_scale >> pos_scale >> vel_scale;
   fprintf(stderr, " scaling mass by %g \n", mass_scale);
   fprintf(stderr, " scaling position by %g \n", pos_scale);
   fprintf(stderr, " scaling velocity by %g \n", vel_scale);
+  
+  real Mcentre;
+  std::cin >> Mcentre;
+  Mcentre *= mass_scale;
+  fprintf(stderr, " Mcentre= %g \n", Mcentre);
 
   for (int i = 0; i < nbody; i++)
   {
-    int idummy;
-    real mass, dt_scale;
+    int id;
+    real mass;
     vec3 pos, vel;
-    std::cin >> idummy >> dt_scale >> mass >> pos.x >> pos.y >> pos.z >> vel.x >> vel.y >> vel.z;
+    std::cin >> id >> mass >> pos.x >> pos.y >> pos.z >> vel.x >> vel.y >> vel.z;
     mass *= mass_scale;
     pos  *= pos_scale;
     vel  *= vel_scale;
     
-    ptcl.push_back(Particle(mass, pos, vel, dt_scale*dt));
+    ptcl.push_back(Particle(mass, pos, vel, id));
   }
 
-  ptcl[0].dt = -1.0;
-  
   fprintf(stderr, "read= %d  particles \n", nbody);
-  return ptcl;
+
+  return Mcentre;
 }
 
-Particle::Vector read_aei(const int nbody, const real dt)
+real read_aei(Particle::Vector &ptcl, const int nbody)
 {
-  Particle::Vector ptcl;
   assert(nbody > 0);
   
   real mass_scale, pos_scale, vel_scale;
@@ -80,27 +71,24 @@ Particle::Vector read_aei(const int nbody, const real dt)
   fprintf(stderr, " scaling mass by %g \n", mass_scale);
   fprintf(stderr, " scaling position by %g \n", pos_scale);
   fprintf(stderr, " scaling velocity by %g \n", vel_scale);
-
+  
   real Mcentre;
-  int index;
-  std::cin >> index;
   std::cin >> Mcentre;
-
+  Mcentre *= mass_scale;
   fprintf(stderr, " Mcentre= %g \n", Mcentre);
-  ptcl.push_back(Particle(Mcentre, 0.0, 0.0));
 
-  for (int i = 0; i < nbody-1; i++)
+  for (int i = 0; i < nbody; i++)
   {
+    int id;
     real mass;
-    real dt_scale;
     real a; // semi-major axis
     real e; // eccentricity
     real I; // inclination in degrees;
     real w; // argument of the pericentre in degrees
     real O; // longitude of the ascending node in degrees
     real M; // mean anomaly in degrees;
-    std::cin >> index >> 
-      dt_scale >>
+    std::cin >>
+      id   >> 
       mass >> 
       a    >> 
       e    >> 
@@ -108,8 +96,8 @@ Particle::Vector read_aei(const int nbody, const real dt)
       w    >> 
       O    >> 
       M;
-    fprintf(stderr, " i =%d : index= %d dt_scale= %g mass= %g  a= %g  e= %g  I= %g  w= %g  O= %g  M= %g :: r_peri= %g  r_apo= %g\n",
-        i, index, dt_scale, mass,
+    fprintf(stderr, " i =%d : index= %d mass= %g  a= %g  e= %g  I= %g  w= %g  O= %g  M= %g :: r_peri= %g  r_apo= %g\n",
+        i, id,  mass,
         a, e, I, w, O, M,
         a*(1.0 -e), a*(1.0 +e));
 
@@ -118,12 +106,6 @@ Particle::Vector read_aei(const int nbody, const real dt)
     M *= M_PI/180.0;
     O *= M_PI/180.0;
 
-#if 0
-    const real x  = sma[i]*(1+ecc[i]);
-    const real y  = 0.0;
-    const real vx = 0.0;
-    const real vy = sqrt(1.0/sma[i]*(1-ecc[i])/(1+ecc[i]));
-#else
     const real Mt   = Mcentre + mass;
     const real E    = Kepler::EccentricAnomaly(e, M);
     const real Edot = sqrt(Mt/(a*a*a))/(1 - e*cos(E));
@@ -132,7 +114,6 @@ Particle::Vector read_aei(const int nbody, const real dt)
     const real y    =  a*sqrt(1.0 - e*e)*sin(E);
     const real vx   = -a*sin(E)*Edot;
     const real vy   =  a*sqrt(1.0 - e*e)*cos(E)*Edot;
-#endif
 
     real r, f;
 
@@ -157,15 +138,12 @@ Particle::Vector read_aei(const int nbody, const real dt)
         pos.x, pos.y, pos.z,
         vel.x, vel.y, vel.z);
 
-    ptcl.push_back(Particle(mass, pos, vel, dt_scale*dt));
+    ptcl.push_back(Particle(mass, pos, vel, id));
   }
-  
-  ptcl[0].dt = -1.0;
 
-  fprintf(stderr, "read= %d  particles \n", nbody-1);
-  assert(nbody == (int)ptcl.size());
+  fprintf(stderr, "read= %d  particles \n", nbody);
 
-  return ptcl;
+  return Mcentre;
 }
 
 int main(int argc, char * argv[])
@@ -183,13 +161,13 @@ int main(int argc, char * argv[])
   unsigned long long iteration = 0;
   Particle::Vector ptcl;
   
-  int nbody, npl;
-  std::cin >> nbody >> npl;
-  assert(nbody != 0);
-  assert(npl >= 0);
+  int nbody, npl_out;
+  std::cin >> nbody >> npl_out;
+  assert(nbody  != 0);
+  assert(npl_out >= 0);
 
-  real tepoch, Tscale;
-  std::cin >> tepoch >> Tscale;
+  real time, Tscale;
+  std::cin >> time >> Tscale;
 
   int dI;
   real Tend, dt_log, dt_out, dt_snap;
@@ -201,7 +179,7 @@ int main(int argc, char * argv[])
   const unsigned long long di_iter_max = 1LLU << 62;
   const unsigned long long di_iter = dI < 0 ? di_iter_max : dI;
 
-  fprintf(stderr, " Tepoch= %g   Tscale= %g \n", tepoch, Tscale);
+  fprintf(stderr, " Time= %g   Tscale= %g \n", time, Tscale);
   fprintf(stderr, " Tend= %g \n", Tend);
   fprintf(stderr, " dTout= %g \n", dt_out);
   fprintf(stderr, " dTlog= %g \n", dt_log);
@@ -210,69 +188,76 @@ int main(int argc, char * argv[])
   real dt;
   std::cin >> dt;
   fprintf(stderr, " dt= %g \n", dt);
+  dt *= Tscale;
 
+  real Mcentre = -1;
   if (nbody < 0)
   {
     fprintf(stderr, " Reading aei format ... \n");
-    ptcl = read_aei(-nbody, dt*Tscale);
+    Mcentre = read_aei(ptcl, -nbody);
   }
   else
   {
     fprintf(stderr, " Reading xyz format ... \n");
-    ptcl = read_xyz(nbody, dt*Tscale);
+    Mcentre = read_xyz(ptcl, nbody);
   }
 
 
-  const real dt_max = 128.0;
-  Nbody s(iteration, tepoch, dt_max, ptcl);
+  libDH dh(Mcentre);
 
-  const real E0 = s.Etot();
-  fprintf(stderr, " tepoch= %g   Etot= %g \n", tepoch, E0);
+  const real E0 = Etot(ptcl, Mcentre);
+  fprintf(stderr, " time= %g   Etot= %g \n", time, E0);
 
   real Ep = E0;
 
-  real t_log  = s.time/Tscale;
-  real t_out  = s.time/Tscale;
-  real t_snap = s.time/Tscale;
+  real t_log  = time/Tscale;
+  real t_out  = time/Tscale;
+  real t_snap = time/Tscale;
 
   real de_max = 0.0;
 
+  ptcl = dh.cvt2symp(ptcl, dt);
+
   double t0 = mytimer::get_wtime();
   const double t_start = t0;
-  while (s.time/Tscale < Tend)
+  unsigned long long iteration1 = 0;
+  while (time/Tscale < Tend)
   {
-    s.iterate();
+    dh.iterate(ptcl, dt, time, iteration1);
+    iteration++;
     const double t1 = mytimer::get_wtime() + 1.0/HUGE;
-    if (s.time/Tscale > t_log || s.time/Tscale >= Tend || s.iteration % di_iter == 0)
+    if (time/Tscale > t_log || time/Tscale >= Tend || iteration % di_iter == 0)
     {
-      const real E1 = s.Etot();
+      const real E1 = Etot(dh.cvt2phys(ptcl, dt), Mcentre);
       de_max = std::max(de_max, std::abs((E1 - E0)/E0));
       fprintf(stderr, "iter= %llu :: t= %g dt= %4.3g  dE= %4.3g ddE= %4.3g dEmax= %4.3g  Twall= %4.3g hr | <T>= %4.3g sec | iter1/iter= %g\n",
-          s.iteration,
-          s.time/Tscale, 
-          s.dt/Tscale,
+          iteration,
+          time/Tscale, 
+          dt/Tscale,
           (E1 - E0)/std::abs(E0),
           (E1 - Ep)/std::abs(Ep),
           de_max,
           (t1 - t_start) / 3600.0,
           t1 - t0,
-          (real)s.iteration1/(real)s.iteration);
+          (real)iteration1/(real)iteration);
       t0 = t1;
-      s.reset_counters();
       t_log += dt_log;
       Ep = E1;
     }
 
-    if (s.time/Tscale > t_out || s.time/Tscale >= Tend)
+#if 0
+    if (time/Tscale > t_out || time/Tscale >= Tend)
     {
-      fprintf(stdout, "%g ", s.time/Tscale);
-      for (int ipl = 0; ipl < npl; ipl++)
+      fprintf(stdout, "%g ", time/Tscale);
+      for (int ipl = 0; ipl < npl_out; ipl++)
         fprintf(stdout,"%s ", s.print_orbit(ipl).c_str());
       fprintf(stdout, "\n");
       fflush(stdout);
       t_out += dt_out;
     }
+#endif
 
+#if 0
     if (s.time/Tscale >= t_snap || s.time/Tscale >= Tend)
     {
       t_snap += dt_snap;
@@ -298,6 +283,7 @@ int main(int argc, char * argv[])
 
       /*************/
     }
+#endif
   }
 
   return 0;
