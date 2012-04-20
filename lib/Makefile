@@ -3,10 +3,7 @@ CC  = gcc
 FC  = gfortran
 LD  = g++
 
-# CXX = g++-mp-4.6
-# CC  = gcc-mp-4.6
 # FC  = gfortran-mp-4.6
-# LD  = g++-mp-4.6
 
 .SUFFIXES: .o .f90 .cpp .cu .s
 
