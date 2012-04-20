@@ -26,7 +26,7 @@ program nbody_program
   real*8, dimension(NBODY_MAX) :: vy1
   real*8, dimension(NBODY_MAX) :: vz1
 
-  integer :: i, j, k
+  integer :: i
 
   real*8 :: t_log, t_out, t_snap
   real*8 :: Ekin, Epot
