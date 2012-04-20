@@ -131,6 +131,7 @@ namespace libDH_cpp
 
     return Epot(ptcl, dh->dh.Mcentre);
   }
+
 }
 
 extern "C"
@@ -195,6 +196,20 @@ extern "C"
     *time = mytimer::get_wtime();
   }
 
+  void get_orbit_(
+      double * x, double * y, double * z,
+      double *vx, double *vy, double *vz,
+      double *Mtot,
+      double *inc, double *sma, double *ecc,
+      double *Omega, double *lambda)
+  {
+    const Orbit orbit(vec3(*x,*y,*z), vec3(*vx,*vy,*vz), *Mtot);
+    *inc    = orbit.inc;
+    *sma    = orbit.sma;
+    *ecc    = orbit.ecc;
+    *Omega  = orbit.Omega;
+    *lambda = orbit.lambda;
+  }
 }
 
 
