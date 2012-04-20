@@ -151,16 +151,6 @@ program nbody_program
         
         wt0 = wt1
         t_log = t_log + dt_log
-!         printf(stderr, "iter= %llu :: t= %g dt= %4.3g  dE= %4.3g ddE= %4.3g dEmax= %4.3g  Twall= %4.3g hr | <T>= %4.3g sec | iter1/iter= %g\n",
-!          iteration,
-!          time/Tscale, 
-!!!          dt/Tscale,
-!          (E1 - E0)/std::abs(E0),
-!          (E1 - Ep)/std::abs(Ep),
-!          de_max,
-!          (t1 - t_start) / 3600.0,
-!          t1 - t0,
-!          (double)iteration1/(double)iteration);
     end if
 
 
