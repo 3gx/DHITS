@@ -1,4 +1,5 @@
 #include "libdh.h"
+#include "mytimer.h"
 
 namespace libDH_cpp
 {
@@ -169,22 +170,29 @@ extern "C"
     libDH_cpp::cvt2symp(*n, *dt, m, x,y,z, vx, vy, vz);
   }
   
-  double dh_Ekin_(
+  void dh_ekin_(
+      double *Ekin,
       int *n,
       double *m,
       double * x, double * y, double * z,
       double *vx, double *vy, double *vz)
   {
-    return libDH_cpp::Ekin(*n, m, x,y,z, vx,vy,vz);
+    *Ekin = libDH_cpp::Ekin(*n, m, x,y,z, vx,vy,vz);
   }
   
-  double dh_Epot_(
+  void dh_epot_(
+      double *Epot,
       int *n,
       double *m,
       double * x, double * y, double * z,
       double *vx, double *vy, double *vz)
   {
-    return libDH_cpp::Epot(*n, m, x,y,z, vx,vy,vz);
+    *Epot = libDH_cpp::Epot(*n, m, x,y,z, vx,vy,vz);
+  }
+
+  void get_wtime_(double *time)
+  {
+    *time = mytimer::get_wtime();
   }
 
 }

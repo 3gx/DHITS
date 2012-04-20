@@ -74,18 +74,22 @@ extern "C"
       double * x, double * y, double * z,
       double *vx, double *vy, double *vz);
   
-  double dh_Ekin_(
+  void dh_ekin_(
+      double *Ekin,
       int *n,
       double *m,
       double * x, double * y, double * z,
       double *vx, double *vy, double *vz);
   
   
-  double dh_Epot_(
+  void dh_epot_(
+      double *Epot,
       int *n,
       double *m,
       double * x, double * y, double * z,
       double *vx, double *vy, double *vz);
+  
+  void get_wtime_(double *time);
 
 }
 

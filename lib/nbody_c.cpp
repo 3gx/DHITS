@@ -256,7 +256,10 @@ int main(int argc, char * argv[])
 
   dh_open_(&Mcentre);
 
-  const double E0 = dh_Ekin_(&n, mass, x,y,z, vx,vy,vz) + dh_Epot_(&n, mass, x,y,z, vx,vy,vz);
+  double Ekin, Epot;
+  dh_ekin_(&Ekin, &n, mass, x,y,z, vx,vy,vz);
+  dh_epot_(&Epot, &n, mass, x,y,z, vx,vy,vz);
+  const double E0 = Ekin + Epot;
   fprintf(stderr, " time= %g   Etot= %g \n", time, E0);
 
   double Ep = E0;
@@ -293,7 +296,9 @@ int main(int argc, char * argv[])
         vz1[i] = vz[i];
       }
       dh_cvt2phys_(&n, &dt, mass, x1,y1,z1, vx1,vy1,vz1);
-      const double E1 = dh_Ekin_(&n, mass, x1,y1,z1, vx1,vy1,vz1) + dh_Epot_(&n, mass, x1,y1,z1, vx1,vy1,vz1);
+      dh_ekin_(&Ekin, &n, mass, x1,y1,z1, vx1,vy1,vz1);
+      dh_epot_(&Epot, &n, mass, x1,y1,z1, vx1,vy1,vz1);
+      const double E1 = Ekin + Epot;
       
       de_max = std::max(de_max, std::abs((E1 - E0)/E0));
       fprintf(stderr, "iter= %llu :: t= %g dt= %4.3g  dE= %4.3g ddE= %4.3g dEmax= %4.3g  Twall= %4.3g hr | <T>= %4.3g sec | iter1/iter= %g\n",

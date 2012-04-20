@@ -242,6 +242,7 @@ struct libDH
         fprintf(stderr, " -- libDH: disabling symplectic corrector ");
         NCSTEP = -1;
     }
+    fprintf(stderr, "\n");
   }
 
   void iterate(Particle::Vector &ptcl, const real dt, real &t, unsigned long long &i, int nstep = 32) const
