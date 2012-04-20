@@ -11,13 +11,11 @@ LD  = g++
 .SUFFIXES: .o .f90 .cpp .cu .s
 
 OFLAGS = -O3 -g -m64 -Wall -msse3 -funroll-all-loops
-# OFLAGS = -O0 -g -m64 -Wall -msse3 
-# OFLAGS += -fopenmp
-CFLAGS = $(OFLAGS) -I$(CUDA_TK)/include  -D__$(MACOSX)__  -I/opt/local/include
-# CFLAGS += -D_CH2SIG_
+CFLAGS = $(OFLAGS) -D__$(MACOSX)__ 
 CXXFLAGS = $(CFLAGS) 
+FCFLAGS = $(OFLAGS)
 
-GFORTRANLIBPATH = /opt/local/lib/gcc46
+GXXLIB = -L/opt/local/lib/gcc46 -L/usr/lib  -lstdc++
 
 
 OFLAGS += -D_FPESIG_ENABLE_ 
@@ -41,7 +39,7 @@ $(PROG): $(OBJS)
 	$(LD) $(CXXFLAGS) -o $@ $(OBJS) -L./ -l$(LIBDH)
 
 $(PROG1): $(OBJS1)
-	$(LD) $(CXXFLAGS) -o $@ $(OBJS1) -L./ -l$(LIBDH) -L$(GFORTRANLIBPATH) -lgfortran
+	$(FC) $(OFLAGS) -o $@ $(OBJS1) -L./ -l$(LIBDH) $(GXXLIB)
 
 $(LIBDH): $(LIBOBJ)
 	/bin/rm -rf lib$@.a
