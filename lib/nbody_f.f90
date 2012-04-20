@@ -158,6 +158,6 @@ program nbody_program
   end do 
 
 
-
+  call dh_close()
 
 end
