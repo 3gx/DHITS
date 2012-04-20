@@ -22,6 +22,7 @@ OBJS = nbody_c.o
 
 PROG1 = nbody_f90
 OBJS1 = nbody_f.o
+OBJS1 = nbody_adaptive.o
 
 LIBOBJ = libdh.o
 LIBDH  = DH

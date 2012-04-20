@@ -83,8 +83,8 @@ program nbody_program
   end do
 
   ! here one needs to make sure that the data has
-  !   heliocentric coordinates &
-  !   barycentric positions
+  !   heliocentric positions &
+  !   barycentric velocities
   ! the library does not check this, so this is user's responsibility
 
   call dh_open(Mcentre);
@@ -118,7 +118,7 @@ program nbody_program
     call dh_iterate(nbody, dt, nstep, mass, x,y,z, vx,vy,vz, time, iter1)
     iteration1 = iteration1 + iter1
     iteration  = iteration  + 1
-
+    
     call get_wtime(wt1)
     wt1 = wt1 + 1.0e-16     ! adding a small number in case wt1 = wt0
 
