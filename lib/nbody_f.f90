@@ -42,6 +42,7 @@ program nbody_program
   read (*, *) nbody, nbody_out
   write (*, '(a,i4,a,i4)') 'nbody=', nbody, '  nbody_out=', nbody_out
   if (nbody < 0) stop 'nbody is not positive. Please check your input file'
+  if (nbody > NBODY_MAX) stop 'please increase NBODY_MAX in nbody_f.90'
 
   read (*, *) time, Tscale
   print *, 'time=   ', time, '  Tscale=', Tscale
