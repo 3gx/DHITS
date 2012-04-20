@@ -142,7 +142,7 @@ program nbody_program
         dEmax = max(dEmax, abs(dE/E0))
 
         write (*, '(a,i9,a,g15.7,a,f8.4,a,3g15.7,a,f7.3,a,a,f4.2,a)') &
-               'iter= ', iteration,  &
+               'iter= ', iteration1,  &
                ' Time= ', time, &
                ' dt= ', dt, &
                ' dE= ', dE, ddE, dEmax, &
