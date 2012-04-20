@@ -123,7 +123,7 @@ program nbody_program
   if (mod(iteration, di_adapt) .eq. 0) then
       call compute_new_timestep(dt_new, nbody, mass, Mcentre, x,y,z, vx,vy,vz)
       if (abs(dt - dt_new) > dt_change_crit * dt) then
-        write (*, '(a,g16.8,a,g16.8)')  'Changing timestep from ', dt, ' to ', dt_new
+        write (*, '(a,g16.8,a,g16.8)')  'Changing timestep from ', dt/Tscale*365, ' to ', dt_new/Tscale*365
         call dh_cvt2phys(nbody, dt, mass, x,y,z, vx,vy,vz);
         dt = dt_new 
         call dh_cvt2symp(nbody, dt, mass, x,y,z, vx,vy,vz)
