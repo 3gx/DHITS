@@ -144,8 +144,8 @@ program nbody_program
 
         write (*, '(a,i9,a,g15.7,a,f8.4,a,3g15.7,a,f7.3,a,a,f4.2,a)') &
                'iter= ', iteration1,  &
-               ' Time= ', time, &
-               ' dt= ', dt, &
+               ' Time= ', time/Tscale, &   ! Time in yr
+               ' dt= ', dt/Tscale*365, &   ! dt in days
                ' dE= ', dE, ddE, dEmax, &
                ' :: tW= ', (wt1 - wt_beg)/3600.0, ' hr', &
                ' <T>=   ', wt1 - wt0, ' sec'
