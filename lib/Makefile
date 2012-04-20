@@ -59,6 +59,6 @@ $(LIBDH): $(LIBOBJ)
 
 clean:
 	/bin/rm -rf *.o version.h
-	/bin/rm -rf $(PROG) lib$(VLIB).a
+	/bin/rm -rf $(PROG) $(PROG1) lib$(VLIB).a
 
 $(OBJS) : libdh.h libdh_inc.h particle.h vector3.h kepler.h dh.h  mytimer.h
