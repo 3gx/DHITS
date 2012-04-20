@@ -137,10 +137,10 @@ program nbody_program
         call dh_ekin(Ekin, nbody, mass, x1,y1,z1, vx1,vy1,vz1)
         call dh_epot(Epot, nbody, mass, x1,y1,z1, vx1,vy1,vz1)
         E1  = Ekin + Epot
-        dE  = E1 - E0
-        ddE = E1 - Ep
+        dE  = (E1 - E0)/E0
+        ddE = (E1 - Ep)/Ep
         Ep  = E1
-        dEmax = max(dEmax, abs(dE/E0))
+        dEmax = max(dEmax, abs(dE))
 
         write (*, '(a,i9,a,g15.7,a,f8.4,a,3g15.7,a,f7.3,a,a,f4.2,a)') &
                'iter= ', iteration1,  &
