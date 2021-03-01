@@ -5,7 +5,7 @@
 #define _SSE_
 #endif
 
-#if 0
+#if 1
 #include "DHITSsh.h"
 #else
 #include "DHITSsh_relax.h"

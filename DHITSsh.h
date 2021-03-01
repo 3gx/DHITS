@@ -1,8 +1,10 @@
 #ifndef _DHSHARED_H_
 #define _DHSHARED_H_
 
+#define HUGE 1.0e34
 #include <sstream>
 #include <vector>
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
